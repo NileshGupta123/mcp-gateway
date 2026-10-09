@@ -58,3 +58,16 @@ wpcli:
     limits:
       cpu: "1"
       memory: 768Mi
+
+wooMcp:
+  image: urumi/woo-mcp:0.1.0
+  imagePullPolicy: IfNotPresent
+  # "Aaj ke orders" ki definition is timezone se hoti hai
+  storeTimezone: Asia/Kolkata
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

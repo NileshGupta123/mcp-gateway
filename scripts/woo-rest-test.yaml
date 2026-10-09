@@ -1,0 +1,35 @@
+# Throwaway test pod: cluster ke andar se WooCommerce REST API auth check karta hai
+apiVersion: v1
+kind: Pod
+metadata:
+  name: woo-rest-test
+  namespace: urumi
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: curlimages/curl
+      command: ["sh", "-c"]
+      args:
+        - |
+          echo "--- with X-Forwarded-Proto: https ---"
+          curl -s -w "\nHTTP %{http_code}\n" -u "$CK:$CS" \
+            -H "X-Forwarded-Proto: https" -H "Host: store.localtest.me" \
+            "http://urumi-wordpress/wp-json/wc/v3/products?per_page=1" | head -c 800
+          echo
+          echo "--- without the header ---"
+          curl -s -w "\nHTTP %{http_code}\n" -u "$CK:$CS" \
+            -H "Host: store.localtest.me" \
+            "http://urumi-wordpress/wp-json/wc/v3/products?per_page=1" | head -c 800
+          echo
+      env:
+        - name: CK
+          valueFrom:
+            secretKeyRef:
+              name: urumi-woo-api
+              key: consumer-key
+        - name: CS
+          valueFrom:
+            secretKeyRef:
+              name: urumi-woo-api
+              key: consumer-secret

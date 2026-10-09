@@ -1,4 +1,4 @@
-# Production-like VPS (k3s). Domain aur storage yahan badlenge, chart wahi rahega.
+# Production-like VPS (k3s). Domain, storage aur image registry yahan badlenge, chart wahi rahega.
 store:
   host: store.example.com
   scheme: https
@@ -16,3 +16,8 @@ mariadb:
 
 wordpress:
   storage: 10Gi
+
+wooMcp:
+  # Prod mein image registry se pull hoti hai (local mein k3d image import se aati hai)
+  image: ghcr.io/nileshgupta123/urumi-woo-mcp:0.1.0
+  imagePullPolicy: Always
