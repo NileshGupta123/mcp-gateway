@@ -4,6 +4,10 @@ store:
   # Browser mein jo URL se store khulega
   host: store.localtest.me
   scheme: http
+  title: "Urumi Store"
+  admin:
+    user: admin
+    email: admin@example.com
   ingress:
     className: traefik
     tls:
@@ -27,7 +31,9 @@ mariadb:
       memory: 512Mi
 
 wordpress:
-  image: wordpress:6-apache
+  # WooCommerce ka latest WordPress 7.0+ maangta hai, isliye 6.x image kaam nahi karti.
+  # Reproducible build ke liye baad mein yahan exact tag pin karenge.
+  image: wordpress:apache
   storage: 2Gi
   resources:
     requests:
@@ -35,4 +41,20 @@ wordpress:
       memory: 256Mi
     limits:
       cpu: 500m
+      memory: 768Mi
+
+woocommerce:
+  # Khali = latest. Reproducible build ke liye yahan version pin kar sakte ho
+  version: ""
+  currency: INR
+  country: "IN:MH"
+
+wpcli:
+  image: wordpress:cli
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
       memory: 768Mi

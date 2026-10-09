@@ -1,0 +1,161 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-wp-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "wp-init") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        {{- include "urumi.labels" (dict "root" . "name" "wp-init") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      # WordPress image ke files uid 33 (www-data) ke hain; wp-cli ko wahi uid chahiye
+      securityContext:
+        runAsUser: 33
+        runAsGroup: 33
+      containers:
+        - name: wp-init
+          image: {{ .Values.wpcli.image }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              WP_BIN="$(command -v wp)"
+              wp() { php -d memory_limit=512M "$WP_BIN" "$@"; }
+              cd /var/www/html
+
+              echo "[0/6] wp-config.php check..."
+              if [ ! -f wp-config.php ]; then
+                echo "wp-config.php nahi mila. /var/www/html ki listing:"
+                ls -la /var/www/html | head -30
+                exit 1
+              fi
+
+              echo "[1/6] Database ka wait (DB host: $WORDPRESS_DB_HOST)..."
+              i=0
+              until php -r '
+                mysqli_report(MYSQLI_REPORT_OFF);
+                $parts = explode(":", getenv("WORDPRESS_DB_HOST"));
+                $h = $parts[0];
+                $p = isset($parts[1]) ? (int)$parts[1] : 3306;
+                $m = new mysqli($h, getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME"), $p);
+                if ($m->connect_errno) { fwrite(STDERR, "db error: " . $m->connect_error . "\n"); exit(1); }
+              '; do
+                i=$((i+1))
+                if [ "$i" -gt 24 ]; then echo "Database 2 minute mein ready nahi hua"; exit 1; fi
+                sleep 5
+              done
+              echo "Database connection OK."
+
+              echo "[2/6] WordPress install + core update..."
+              if ! wp core is-installed; then
+                wp core install \
+                  --url="$SITE_URL" \
+                  --title="$SITE_TITLE" \
+                  --admin_user="$ADMIN_USER" \
+                  --admin_password="$ADMIN_PASSWORD" \
+                  --admin_email="$ADMIN_EMAIL" \
+                  --skip-email
+              else
+                echo "WordPress pehle se installed hai, skip."
+              fi
+              echo "WordPress version (pehle): $(wp core version)"
+              # Latest WooCommerce ko WordPress 7.0+ chahiye; core latest pe laate hain
+              wp core update
+              wp core update-db
+              echo "WordPress version (baad mein): $(wp core version)"
+
+              echo "[3/6] Permalinks..."
+              wp rewrite structure '/%postname%/' --hard
+
+              echo "[4/6] WooCommerce install + activate..."
+              if ! wp plugin is-installed woocommerce; then
+                wp plugin install woocommerce ${WC_VERSION:+--version="$WC_VERSION"}
+              fi
+              wp plugin activate woocommerce
+
+              echo "[5/6] Store settings (currency, COD, shipping, launch)..."
+              wp option update woocommerce_currency "$WC_CURRENCY"
+              wp option update woocommerce_default_country "$WC_COUNTRY"
+              wp option update woocommerce_coming_soon no
+              wp option update woocommerce_store_pages_only no
+              wp wc payment_gateway update cod --enabled=true --user="$ADMIN_USER"
+              if [ -z "$(wp wc shipping_zone_method list 0 --user="$ADMIN_USER" --format=ids)" ]; then
+                wp wc shipping_zone_method create 0 --method_id=free_shipping --user="$ADMIN_USER"
+              fi
+
+              echo "[6/6] WooCommerce REST API key..."
+              wp eval '
+                global $wpdb;
+                $table = $wpdb->prefix . "woocommerce_api_keys";
+                $ck = getenv("WOO_CONSUMER_KEY");
+                $cs = getenv("WOO_CONSUMER_SECRET");
+                $user = get_user_by("login", getenv("ADMIN_USER"));
+                if (!$user || !$ck || !$cs) { fwrite(STDERR, "user ya key missing\n"); exit(1); }
+                $wpdb->delete($table, array("description" => "urumi-woo-mcp"));
+                $ok = $wpdb->insert($table, array(
+                  "user_id"         => $user->ID,
+                  "description"     => "urumi-woo-mcp",
+                  "permissions"     => "read_write",
+                  "consumer_key"    => wc_api_hash($ck),
+                  "consumer_secret" => $cs,
+                  "truncated_key"   => substr($ck, -7),
+                ));
+                if (!$ok) { fwrite(STDERR, "API key insert fail\n"); exit(1); }
+                echo "api key ok\n";
+              '
+
+              echo "Store setup complete."
+          env:
+            {{- include "urumi.wpEnv" . | nindent 12 }}
+            - name: HOME
+              value: /tmp
+            - name: WP_CLI_CACHE_DIR
+              value: /tmp/wp-cli-cache
+            - name: SITE_URL
+              value: "{{ .Values.store.scheme }}://{{ .Values.store.host }}"
+            - name: SITE_TITLE
+              value: {{ .Values.store.title | quote }}
+            - name: ADMIN_USER
+              value: {{ .Values.store.admin.user | quote }}
+            - name: ADMIN_EMAIL
+              value: {{ .Values.store.admin.email | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-store-admin
+                  key: admin-password
+            - name: WC_VERSION
+              value: {{ .Values.woocommerce.version | quote }}
+            - name: WC_CURRENCY
+              value: {{ .Values.woocommerce.currency | quote }}
+            - name: WC_COUNTRY
+              value: {{ .Values.woocommerce.country | quote }}
+            - name: WOO_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-woo-api
+                  key: consumer-key
+            - name: WOO_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-woo-api
+                  key: consumer-secret
+          resources:
+            {{- toYaml .Values.wpcli.resources | nindent 12 }}
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html
+      volumes:
+        - name: wp-content
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-wordpress

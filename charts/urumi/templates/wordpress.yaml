@@ -56,22 +56,7 @@ spec:
             - name: http
               containerPort: 80
           env:
-            - name: WORDPRESS_DB_HOST
-              value: "{{ .Release.Name }}-mariadb:3306"
-            - name: WORDPRESS_DB_NAME
-              value: {{ .Values.mariadb.database | quote }}
-            - name: WORDPRESS_DB_USER
-              value: {{ .Values.mariadb.user | quote }}
-            - name: WORDPRESS_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-store-db
-                  key: mariadb-password
-            - name: WORDPRESS_CONFIG_EXTRA
-              value: |
-                define('WP_HOME', '{{ .Values.store.scheme }}://{{ .Values.store.host }}');
-                define('WP_SITEURL', '{{ .Values.store.scheme }}://{{ .Values.store.host }}');
-                if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $_SERVER['HTTPS'] = 'on'; }
+            {{- include "urumi.wpEnv" . | nindent 12 }}
           startupProbe:
             httpGet:
               path: /wp-login.php
