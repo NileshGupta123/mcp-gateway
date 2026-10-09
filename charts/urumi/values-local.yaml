@@ -1,0 +1,11 @@
+# Local k3d cluster
+store:
+  host: store.localtest.me
+  scheme: http
+  ingress:
+    className: traefik
+    tls:
+      enabled: false
+
+# k3d mein default "local-path" hi use hoga
+storageClass: ""

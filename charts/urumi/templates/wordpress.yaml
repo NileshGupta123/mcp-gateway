@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-wordpress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "wordpress") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.wordpress.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-wordpress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "wordpress") | nindent 4 }}
+spec:
+  selector:
+    {{- include "urumi.selector" (dict "root" . "name" "wordpress") | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-wordpress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "wordpress") | nindent 4 }}
+spec:
+  replicas: 1
+  # RWO volume hai, isliye naya pod tab aaye jab purana ruk jaye
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "urumi.selector" (dict "root" . "name" "wordpress") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "urumi.labels" (dict "root" . "name" "wordpress") | nindent 8 }}
+    spec:
+      containers:
+        - name: wordpress
+          image: {{ .Values.wordpress.image }}
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ .Release.Name }}-mariadb:3306"
+            - name: WORDPRESS_DB_NAME
+              value: {{ .Values.mariadb.database | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ .Values.mariadb.user | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-store-db
+                  key: mariadb-password
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('WP_HOME', '{{ .Values.store.scheme }}://{{ .Values.store.host }}');
+                define('WP_SITEURL', '{{ .Values.store.scheme }}://{{ .Values.store.host }}');
+                if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $_SERVER['HTTPS'] = 'on'; }
+          startupProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.wordpress.resources | nindent 12 }}
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html
+      volumes:
+        - name: wp-content
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-wordpress

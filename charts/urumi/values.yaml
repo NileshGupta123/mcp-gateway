@@ -1,0 +1,38 @@
+# Defaults. Environment-specific cheezein values-local.yaml / values-prod.yaml mein override hoti hain.
+
+store:
+  # Browser mein jo URL se store khulega
+  host: store.localtest.me
+  scheme: http
+  ingress:
+    className: traefik
+    tls:
+      enabled: false
+      secretName: ""
+
+# Khali = cluster ka default StorageClass (k3d/k3s mein "local-path")
+storageClass: ""
+
+mariadb:
+  image: mariadb:11.4
+  database: wordpress
+  user: wordpress
+  storage: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+wordpress:
+  image: wordpress:6-apache
+  storage: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi

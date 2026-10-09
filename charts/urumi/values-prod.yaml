@@ -1,0 +1,18 @@
+# Production-like VPS (k3s). Domain aur storage yahan badlenge, chart wahi rahega.
+store:
+  host: store.example.com
+  scheme: https
+  ingress:
+    className: traefik
+    tls:
+      enabled: true
+      secretName: store-tls
+
+# k3s ka default "local-path"; managed cloud pe yahan uski class aayegi
+storageClass: ""
+
+mariadb:
+  storage: 10Gi
+
+wordpress:
+  storage: 10Gi
