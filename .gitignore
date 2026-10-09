@@ -1,0 +1,31 @@
+# Secrets (assignment rule: no hardcoded secrets in repo)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.local.yaml
+values-secrets*.yaml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / React
+node_modules/
+dist/
+.vite/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local cluster artifacts
+kubeconfig*
+*.log
