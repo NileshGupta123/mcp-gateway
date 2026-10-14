@@ -21,3 +21,11 @@ wooMcp:
   # Prod mein image registry se pull hoti hai (local mein k3d image import se aati hai)
   image: ghcr.io/nileshgupta123/urumi-woo-mcp:0.1.0
   imagePullPolicy: Always
+
+mcpServers:
+  notes:
+    image: ghcr.io/nileshgupta123/urumi-notes-mcp:0.1.0
+    imagePullPolicy: Always
+  time:
+    image: ghcr.io/nileshgupta123/urumi-time-mcp:0.1.0
+    imagePullPolicy: Always

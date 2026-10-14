@@ -71,3 +71,26 @@ wooMcp:
     limits:
       cpu: 300m
       memory: 256Mi
+
+# Extra upstream MCP servers. Sab ek hi generic template (mcp-servers.yaml) se deploy hote hain.
+mcpServers:
+  notes:
+    image: urumi/notes-mcp:0.1.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  time:
+    image: urumi/time-mcp:0.1.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi

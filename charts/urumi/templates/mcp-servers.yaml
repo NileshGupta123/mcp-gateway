@@ -1,0 +1,80 @@
+{{- range $name, $cfg := .Values.mcpServers }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}-mcp
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" $ "name" (printf "%s-mcp" $name)) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "urumi.selector" (dict "root" $ "name" (printf "%s-mcp" $name)) | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}-mcp
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" $ "name" (printf "%s-mcp" $name)) | nindent 4 }}
+spec:
+  # Notes server ki state memory mein hai, isliye replicas=1 rakhna zaroori hai
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "urumi.selector" (dict "root" $ "name" (printf "%s-mcp" $name)) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "urumi.labels" (dict "root" $ "name" (printf "%s-mcp" $name)) | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ $name }}-mcp
+          image: {{ $cfg.image }}
+          imagePullPolicy: {{ $cfg.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
