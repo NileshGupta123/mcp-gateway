@@ -31,3 +31,10 @@ spec:
                 name: {{ .Release.Name }}-gateway
                 port:
                   name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-dashboard
+                port:
+                  name: http

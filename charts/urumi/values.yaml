@@ -107,7 +107,7 @@ postgres:
       cpu: 500m
       memory: 512Mi
 
-# Gateway backend (admin API + /mcp endpoint). Dashboard bhi isi host pe aayega.
+# Gateway backend (admin API + /mcp endpoint). Dashboard bhi isi host pe aata hai.
 gateway:
   image: urumi/gateway:0.1.0
   imagePullPolicy: IfNotPresent
@@ -121,3 +121,15 @@ gateway:
     limits:
       cpu: 500m
       memory: 512Mi
+
+# React dashboard (static files, non-root nginx)
+dashboard:
+  image: urumi/dashboard:0.1.0
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 96Mi

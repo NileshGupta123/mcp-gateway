@@ -39,3 +39,7 @@ gateway:
   host: app.example.com
   adminEmail: admin@example.com
   tlsSecretName: app-tls
+
+dashboard:
+  image: ghcr.io/nileshgupta123/urumi-dashboard:0.1.0
+  imagePullPolicy: Always

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, type User } from "./api";
 import { Button } from "./ui";
+import AuditPage from "./pages/AuditPage";
 import ChangePassword from "./pages/ChangePassword";
 import KeysPage from "./pages/KeysPage";
 import Login from "./pages/Login";
 import ServersPage from "./pages/ServersPage";
+import UsersPage from "./pages/UsersPage";
 
-type Tab = "servers" | "keys";
+type Tab = "servers" | "users" | "keys" | "audit";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -49,16 +51,21 @@ export default function App() {
     user.role === "admin"
       ? [
           { id: "servers", label: "MCP servers" },
+          { id: "users", label: "Team" },
           { id: "keys", label: "API keys" },
+          { id: "audit", label: "Audit log" },
         ]
-      : [{ id: "keys", label: "API keys" }];
+      : [
+          { id: "keys", label: "API keys" },
+          { id: "audit", label: "My activity" },
+        ];
   const active = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-6">
             <span className="text-base font-semibold text-slate-900">Urumi MCP Gateway</span>
             <nav className="flex gap-1">
               {tabs.map((t) => (
@@ -82,7 +89,10 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
-        {active === "servers" ? <ServersPage /> : <KeysPage user={user} />}
+        {active === "servers" ? <ServersPage /> : null}
+        {active === "users" ? <UsersPage me={user} /> : null}
+        {active === "keys" ? <KeysPage user={user} /> : null}
+        {active === "audit" ? <AuditPage user={user} /> : null}
       </main>
     </div>
   );

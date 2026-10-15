@@ -12,6 +12,10 @@ export interface User {
   created_at: string;
 }
 
+export interface UserCreated extends User {
+  temporary_password: string;
+}
+
 export interface ServerTool {
   name: string;
   gateway_name: string;
@@ -67,6 +71,32 @@ export interface CreatedKey extends ApiKey {
   key: string;
 }
 
+export type AuditOutcome = "success" | "error" | "denied";
+
+export interface AuditItem {
+  id: number;
+  ts: string;
+  user_email: string;
+  server: string | null;
+  tool: string;
+  duration_ms: number;
+  outcome: AuditOutcome;
+  error: string | null;
+  source: string;
+}
+
+export interface AuditResponse {
+  total: number;
+  items: AuditItem[];
+}
+
+export interface AuditQuery {
+  limit: number;
+  offset: number;
+  outcome?: string;
+  server?: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -118,6 +148,12 @@ export const api = {
   changePassword: (current_password: string, new_password: string) =>
     request<{ ok: boolean }>("POST", "/api/auth/change-password", { current_password, new_password }),
 
+  listUsers: () => request<User[]>("GET", "/api/users"),
+  createUser: (body: { email: string; name: string; role: Role }) =>
+    request<UserCreated>("POST", "/api/users", body),
+  updateUser: (id: number, body: { role?: Role; active?: boolean }) =>
+    request<User>("PATCH", `/api/users/${id}`, body),
+
   listServers: (refresh = false) => request<Server[]>("GET", `/api/servers${refresh ? "?refresh=true" : ""}`),
   createServer: (body: ServerCreate) => request<Server>("POST", "/api/servers", body),
   updateServer: (id: number, body: ServerUpdate) => request<Server>("PATCH", `/api/servers/${id}`, body),
@@ -126,4 +162,11 @@ export const api = {
   listKeys: (all = false) => request<ApiKey[]>("GET", `/api/keys${all ? "?all=true" : ""}`),
   createKey: (name: string) => request<CreatedKey>("POST", "/api/keys", { name }),
   revokeKey: (id: number) => request<ApiKey>("DELETE", `/api/keys/${id}`),
+
+  listAudit: (q: AuditQuery) => {
+    const params = new URLSearchParams({ limit: String(q.limit), offset: String(q.offset) });
+    if (q.outcome) params.set("outcome", q.outcome);
+    if (q.server) params.set("server", q.server);
+    return request<AuditResponse>("GET", `/api/audit?${params.toString()}`);
+  },
 };
