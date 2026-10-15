@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import anyio
 import httpx
-from mcp import ClientSession
+from mcp import ClientSession, types
 from mcp.client.streamable_http import streamablehttp_client
 
 from .urlcheck import UrlNotAllowed, validate_upstream_url
@@ -42,9 +42,10 @@ def describe_error(exc: BaseException) -> str:
 
 
 async def fetch_tools(cfg: UpstreamConfig, timeout: float) -> list[dict]:
-    # Har connect se pehle URL dobara check (DNS rebinding se bachne ke liye)
-    await validate_upstream_url(cfg.url)
+    # Poora kaam (DNS check + connect + list) ek hi timeout ke andar, to dead server bounded rehta hai.
+    # URL har connect pe dobara check hota hai (DNS rebinding se bachne ke liye).
     with anyio.fail_after(timeout):
+        await validate_upstream_url(cfg.url)
         async with streamablehttp_client(cfg.url, headers=cfg.headers or None) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
@@ -53,3 +54,14 @@ async def fetch_tools(cfg: UpstreamConfig, timeout: float) -> list[dict]:
         {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
         for t in result.tools
     ]
+
+
+async def call_upstream_tool(
+    cfg: UpstreamConfig, tool: str, arguments: dict, timeout: float
+) -> types.CallToolResult:
+    with anyio.fail_after(timeout):
+        await validate_upstream_url(cfg.url)
+        async with streamablehttp_client(cfg.url, headers=cfg.headers or None) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return await session.call_tool(tool, arguments)
