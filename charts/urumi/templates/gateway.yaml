@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "gateway") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "urumi.selector" (dict "root" . "name" "gateway") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "urumi.labels" (dict "root" . "name" "gateway") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "urumi.selector" (dict "root" . "name" "gateway") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "urumi.labels" (dict "root" . "name" "gateway") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: {{ .Values.gateway.image }}
+          imagePullPolicy: {{ .Values.gateway.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateway
+                  key: postgres-password
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://gateway:$(POSTGRES_PASSWORD)@{{ .Release.Name }}-postgres:5432/gateway"
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateway
+                  key: session-secret
+            - name: FERNET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateway
+                  key: fernet-key
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateway
+                  key: admin-password
+            - name: ADMIN_EMAIL
+              value: {{ .Values.gateway.adminEmail | quote }}
+            - name: COOKIE_SECURE
+              value: {{ if eq .Values.store.scheme "https" }}"true"{{ else }}"false"{{ end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

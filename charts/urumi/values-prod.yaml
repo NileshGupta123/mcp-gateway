@@ -29,3 +29,13 @@ mcpServers:
   time:
     image: ghcr.io/nileshgupta123/urumi-time-mcp:0.1.0
     imagePullPolicy: Always
+
+postgres:
+  storage: 5Gi
+
+gateway:
+  image: ghcr.io/nileshgupta123/urumi-gateway:0.1.0
+  imagePullPolicy: Always
+  host: app.example.com
+  adminEmail: admin@example.com
+  tlsSecretName: app-tls
