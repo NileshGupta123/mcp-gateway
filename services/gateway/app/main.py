@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -6,10 +7,10 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
-from . import api_auth, api_keys, api_users
+from . import api_auth, api_keys, api_servers, api_users
 from .config import settings
 from .db import SessionLocal, engine, init_db
-from .models import User
+from .models import McpServer, User
 from .security import hash_password
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -38,10 +39,33 @@ async def bootstrap_admin() -> None:
             await session.rollback()  # doosre replica ne pehle bana diya
 
 
+async def seed_servers() -> None:
+    """Table khali ho to Helm se aayi upstream list register karta hai (woocommerce pehla server)."""
+    if not settings.upstream_seed:
+        return
+    try:
+        items = json.loads(settings.upstream_seed)
+    except ValueError:
+        log.error("UPSTREAM_SEED is not valid JSON; skipping seed")
+        return
+    async with SessionLocal() as session:
+        count = (await session.execute(select(func.count()).select_from(McpServer))).scalar_one()
+        if count:
+            return
+        for item in items:
+            session.add(McpServer(name=item["name"], url=item["url"], enabled=True, auth_type="none"))
+        try:
+            await session.commit()
+            log.info("Seeded %d upstream servers: %s", len(items), [i["name"] for i in items])
+        except IntegrityError:
+            await session.rollback()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_db()
     await bootstrap_admin()
+    await seed_servers()
     yield
     await engine.dispose()
 
@@ -55,6 +79,7 @@ app = FastAPI(
 app.include_router(api_auth.router)
 app.include_router(api_users.router)
 app.include_router(api_keys.router)
+app.include_router(api_servers.router)
 
 
 @app.get("/healthz")

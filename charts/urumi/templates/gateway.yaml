@@ -1,3 +1,7 @@
+{{- $seed := list (dict "name" "woocommerce" "url" (printf "http://%s-woo-mcp:8000/mcp" .Release.Name)) -}}
+{{- range $name, $_ := .Values.mcpServers -}}
+{{- $seed = append $seed (dict "name" $name "url" (printf "http://%s-%s-mcp:8000/mcp" $.Release.Name $name)) -}}
+{{- end -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -71,6 +75,8 @@ spec:
               value: {{ .Values.gateway.adminEmail | quote }}
             - name: COOKIE_SECURE
               value: {{ if eq .Values.store.scheme "https" }}"true"{{ else }}"false"{{ end }}
+            - name: UPSTREAM_SEED
+              value: {{ $seed | toJson | quote }}
           readinessProbe:
             httpGet:
               path: /readyz
