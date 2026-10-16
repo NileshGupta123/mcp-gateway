@@ -3,12 +3,13 @@ import { api, type User } from "./api";
 import { Button } from "./ui";
 import AuditPage from "./pages/AuditPage";
 import ChangePassword from "./pages/ChangePassword";
+import ChatPage from "./pages/ChatPage";
 import KeysPage from "./pages/KeysPage";
 import Login from "./pages/Login";
 import ServersPage from "./pages/ServersPage";
 import UsersPage from "./pages/UsersPage";
 
-type Tab = "servers" | "users" | "keys" | "audit";
+type Tab = "servers" | "users" | "keys" | "chat" | "audit";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -53,9 +54,11 @@ export default function App() {
           { id: "servers", label: "MCP servers" },
           { id: "users", label: "Team" },
           { id: "keys", label: "API keys" },
+          { id: "chat", label: "Chat agent" },
           { id: "audit", label: "Audit log" },
         ]
       : [
+          { id: "chat", label: "Chat agent" },
           { id: "keys", label: "API keys" },
           { id: "audit", label: "My activity" },
         ];
@@ -92,6 +95,7 @@ export default function App() {
         {active === "servers" ? <ServersPage /> : null}
         {active === "users" ? <UsersPage me={user} /> : null}
         {active === "keys" ? <KeysPage user={user} /> : null}
+        {active === "chat" ? <ChatPage /> : null}
         {active === "audit" ? <AuditPage user={user} /> : null}
       </main>
     </div>

@@ -8,7 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from starlette.routing import Route
 
-from . import api_audit, api_auth, api_keys, api_servers, api_users, mcp_endpoint
+from . import api_audit, api_auth, api_chat, api_keys, api_servers, api_users, mcp_endpoint
 from .config import settings
 from .db import SessionLocal, engine, init_db
 from .models import McpServer, User
@@ -67,6 +67,8 @@ async def lifespan(_: FastAPI):
     await init_db()
     await bootstrap_admin()
     await seed_servers()
+    if not settings.llm_api_key:
+        log.warning("LLM_API_KEY is not set: the chat agent will answer 503 until the 'urumi-llm' secret exists")
     async with mcp_endpoint.session_manager.run():
         yield
     await engine.dispose()
@@ -83,6 +85,7 @@ app.include_router(api_users.router)
 app.include_router(api_keys.router)
 app.include_router(api_servers.router)
 app.include_router(api_audit.router)
+app.include_router(api_chat.router)
 
 # /mcp ek raw ASGI app hai (FastAPI ke request handler ke bajay), taaki MCP transport poora control rakhe
 app.router.routes.append(Route("/mcp", endpoint=mcp_endpoint.McpEndpoint()))

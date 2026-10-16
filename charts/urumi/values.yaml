@@ -133,3 +133,14 @@ dashboard:
     limits:
       cpu: 200m
       memory: 96Mi
+
+# Chat agent. API key yahan nahi hai: Kubernetes Secret "apiKeySecret" (key: api-key) se aati hai,
+# jo helm ke bahar banta hai (README mein command hai). Koi bhi OpenAI-compatible provider chalega.
+# Models: pehle "model", aur uske fail hone par "fallbackModel" (dono Groq pe).
+chat:
+  baseUrl: https://api.groq.com/openai/v1
+  model: openai/gpt-oss-120b
+  fallbackModel: openai/gpt-oss-20b
+  apiKeySecret: urumi-llm
+  maxSteps: 6
+  timezone: Asia/Kolkata

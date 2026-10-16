@@ -24,10 +24,18 @@ class Settings:
     session_ttl_seconds: int = 8 * 3600
     # Tool listing / status probe ka per-server timeout (seconds)
     upstream_list_timeout: float = 5.0
-    # Tool call ka per-call timeout (seconds), 9B mein use hoga
+    # Tool call ka per-call timeout (seconds)
     upstream_call_timeout: float = 30.0
     # Status kitni der cache rahe (seconds)
     status_cache_ttl: float = 10.0
+    # Chat agent. LLM key khali ho to chat 503 deta hai, gateway phir bhi chalta hai
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_model: str = "openai/gpt-oss-120b"
+    llm_fallback_model: str = "openai/gpt-oss-20b"
+    chat_max_steps: int = 6
+    chat_timezone: str = "Asia/Kolkata"
+    chat_rate_per_minute: int = 10
 
 
 def load_settings() -> Settings:
@@ -42,6 +50,13 @@ def load_settings() -> Settings:
         upstream_list_timeout=float(os.environ.get("UPSTREAM_LIST_TIMEOUT", "5")),
         upstream_call_timeout=float(os.environ.get("UPSTREAM_CALL_TIMEOUT", "30")),
         status_cache_ttl=float(os.environ.get("STATUS_CACHE_TTL", "10")),
+        llm_api_key=os.environ.get("LLM_API_KEY", "").strip(),
+        llm_base_url=os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1").strip().rstrip("/"),
+        llm_model=os.environ.get("LLM_MODEL", "openai/gpt-oss-120b").strip(),
+        llm_fallback_model=os.environ.get("LLM_FALLBACK_MODEL", "openai/gpt-oss-20b").strip(),
+        chat_max_steps=int(os.environ.get("CHAT_MAX_STEPS", "6")),
+        chat_timezone=os.environ.get("CHAT_TIMEZONE", "Asia/Kolkata").strip(),
+        chat_rate_per_minute=int(os.environ.get("CHAT_RATE_PER_MINUTE", "10")),
     )
 
 

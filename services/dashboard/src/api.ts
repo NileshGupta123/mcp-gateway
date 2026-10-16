@@ -97,6 +97,25 @@ export interface AuditQuery {
   server?: string;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatToolCall {
+  name: string;
+  arguments: Record<string, unknown>;
+  ok: boolean;
+  duration_ms: number;
+  result: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  tool_calls: ChatToolCall[];
+  model: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -169,4 +188,6 @@ export const api = {
     if (q.server) params.set("server", q.server);
     return request<AuditResponse>("GET", `/api/audit?${params.toString()}`);
   },
+
+  chat: (messages: ChatMessage[]) => request<ChatResponse>("POST", "/api/chat", { messages }),
 };
