@@ -1,7 +1,7 @@
 """Gateway ka core: tools ki aggregated list aur routing + audit ke saath tool execution.
 
-MCP endpoint aur (aage) chat agent dono yahi functions use karte hain, isliye dono ek hi tarah
-audit hote hain aur ek hi tarah ke errors dete hain.
+MCP endpoint aur chat agent dono yahi functions use karte hain, isliye dono ek hi tarah
+audit hote hain, ek hi tarah ke errors dete hain, aur ek hi permissions lagte hain.
 """
 
 import logging
@@ -14,6 +14,7 @@ from . import registry
 from .config import settings
 from .db import SessionLocal
 from .models import AuditLog, McpServer
+from .permissions import denied_tools
 from .principal import Principal
 from .upstream import call_upstream_tool, describe_error, root_cause
 
@@ -32,14 +33,20 @@ def _clean(text: str, limit: int) -> str:
 
 
 async def list_gateway_tools(principal: Principal) -> list[dict]:
-    """Sab enabled aur connected servers ke tools, `<server>__<tool>` naam ke saath."""
+    """Sab enabled aur connected servers ke tools, `<server>__<tool>` naam ke saath.
+
+    Jo tools is principal ke role ke liye band hain wo list se gayab rehte hain.
+    """
     async with SessionLocal() as session:
         states = await registry.server_states(session)
+    denied = await denied_tools(principal.role)
     tools: list[dict] = []
     for server, state in states:
         if state["status"] != "connected":
             continue  # disabled ya unreachable server ke tools list se gayab
         for tool in state["tools"]:
+            if (server.name, tool["name"]) in denied:
+                continue  # is role ko ye tool nahi milta
             tools.append(
                 {
                     "name": f"{server.name}{SEPARATOR}{tool['name']}",
@@ -104,6 +111,11 @@ async def execute_tool(
             outcome = "denied"
             raise ToolCallError(f"Unknown tool '{gateway_name}': server '{server_name}' is not available")
         audit_server, audit_tool = server.name, tool_name
+
+        # Permission check: list se chhupne ke saath-saath seedhi call bhi reject hoti hai
+        if (server.name, tool_name) in await denied_tools(principal.role):
+            outcome = "denied"
+            raise ToolCallError(f"You do not have permission to use '{gateway_name}'")
 
         try:
             result = await call_upstream_tool(

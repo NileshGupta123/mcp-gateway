@@ -8,7 +8,16 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from starlette.routing import Route
 
-from . import api_audit, api_auth, api_chat, api_keys, api_servers, api_users, mcp_endpoint
+from . import (
+    api_audit,
+    api_auth,
+    api_chat,
+    api_keys,
+    api_permissions,
+    api_servers,
+    api_users,
+    mcp_endpoint,
+)
 from .config import settings
 from .db import SessionLocal, engine, init_db
 from .models import McpServer, User
@@ -84,6 +93,7 @@ app.include_router(api_auth.router)
 app.include_router(api_users.router)
 app.include_router(api_keys.router)
 app.include_router(api_servers.router)
+app.include_router(api_permissions.router)
 app.include_router(api_audit.router)
 app.include_router(api_chat.router)
 

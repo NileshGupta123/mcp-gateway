@@ -6,10 +6,11 @@ import ChangePassword from "./pages/ChangePassword";
 import ChatPage from "./pages/ChatPage";
 import KeysPage from "./pages/KeysPage";
 import Login from "./pages/Login";
+import PermissionsPage from "./pages/PermissionsPage";
 import ServersPage from "./pages/ServersPage";
 import UsersPage from "./pages/UsersPage";
 
-type Tab = "servers" | "users" | "keys" | "chat" | "audit";
+type Tab = "servers" | "permissions" | "users" | "keys" | "chat" | "audit";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -52,6 +53,7 @@ export default function App() {
     user.role === "admin"
       ? [
           { id: "servers", label: "MCP servers" },
+          { id: "permissions", label: "Permissions" },
           { id: "users", label: "Team" },
           { id: "keys", label: "API keys" },
           { id: "chat", label: "Chat agent" },
@@ -70,7 +72,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="flex flex-wrap items-center gap-6">
             <span className="text-base font-semibold text-slate-900">Urumi MCP Gateway</span>
-            <nav className="flex gap-1">
+            <nav className="flex flex-wrap gap-1">
               {tabs.map((t) => (
                 <button
                   key={t.id}
@@ -93,6 +95,7 @@ export default function App() {
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
         {active === "servers" ? <ServersPage /> : null}
+        {active === "permissions" ? <PermissionsPage /> : null}
         {active === "users" ? <UsersPage me={user} /> : null}
         {active === "keys" ? <KeysPage user={user} /> : null}
         {active === "chat" ? <ChatPage /> : null}

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -65,3 +65,16 @@ class AuditLog(Base):
     outcome: Mapped[str] = mapped_column(String(16))  # success | error | denied
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(16), default="mcp")  # mcp | chat
+
+
+class ToolDeny(Base):
+    """Ek row = is role ke liye ye tool band hai. Row na ho to tool allowed hai."""
+
+    __tablename__ = "tool_denials"
+    __table_args__ = (UniqueConstraint("role", "server", "tool", name="uq_tool_denial"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    role: Mapped[str] = mapped_column(String(16), index=True)
+    server: Mapped[str] = mapped_column(String(32))
+    tool: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

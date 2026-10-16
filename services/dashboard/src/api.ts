@@ -116,6 +116,25 @@ export interface ChatResponse {
   model: string;
 }
 
+export interface PermissionTool {
+  name: string;
+  gateway_name: string;
+  description: string;
+  members_allowed: boolean;
+}
+
+export interface PermissionServer {
+  server: string;
+  status: ServerStatus;
+  enabled: boolean;
+  tools: PermissionTool[];
+}
+
+export interface PermissionsResponse {
+  servers: PermissionServer[];
+  denied: string[];
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -177,6 +196,14 @@ export const api = {
   createServer: (body: ServerCreate) => request<Server>("POST", "/api/servers", body),
   updateServer: (id: number, body: ServerUpdate) => request<Server>("PATCH", `/api/servers/${id}`, body),
   deleteServer: (id: number) => request<{ deleted: number }>("DELETE", `/api/servers/${id}`),
+
+  getPermissions: () => request<PermissionsResponse>("GET", "/api/permissions"),
+  setPermission: (server: string, tool: string, members_allowed: boolean) =>
+    request<{ server: string; tool: string; members_allowed: boolean }>(
+      "PUT",
+      `/api/permissions/${encodeURIComponent(server)}/${encodeURIComponent(tool)}`,
+      { members_allowed },
+    ),
 
   listKeys: (all = false) => request<ApiKey[]>("GET", `/api/keys${all ? "?all=true" : ""}`),
   createKey: (name: string) => request<CreatedKey>("POST", "/api/keys", { name }),
