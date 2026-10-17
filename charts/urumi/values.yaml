@@ -1,7 +1,7 @@
-# Defaults. Environment-specific cheezein values-local.yaml / values-prod.yaml mein override hoti hain.
+# Defaults. Environment-specific settings are overridden in values-local.yaml and values-prod.yaml.
 
 store:
-  # Browser mein jo URL se store khulega
+  # The URL the store is opened at in the browser
   host: store.localtest.me
   scheme: http
   title: "Urumi Store"
@@ -14,7 +14,7 @@ store:
       enabled: false
       secretName: ""
 
-# Khali = cluster ka default StorageClass (k3d/k3s mein "local-path")
+# Empty means the cluster's default StorageClass ("local-path" on k3d and k3s)
 storageClass: ""
 
 mariadb:
@@ -31,9 +31,11 @@ mariadb:
       memory: 512Mi
 
 wordpress:
-  # WooCommerce ka latest WordPress 7.0+ maangta hai, isliye 6.x image kaam nahi karti.
-  # Reproducible build ke liye baad mein yahan exact tag pin karenge.
-  image: wordpress:apache
+  # The image tag and coreVersion move together. The image only seeds an empty volume: an existing
+  # volume keeps its old core files, so the setup job runs `wp core update --version=<coreVersion>`
+  # on every install and upgrade. Leave coreVersion empty to follow the latest release.
+  image: wordpress:7.1.3-apache
+  coreVersion: "7.1.3"
   storage: 2Gi
   resources:
     requests:
@@ -44,8 +46,8 @@ wordpress:
       memory: 768Mi
 
 woocommerce:
-  # Khali = latest. Reproducible build ke liye yahan version pin kar sakte ho
-  version: ""
+  # The setup job installs this version, and moves an existing install to it. Empty means the latest.
+  version: "11.2.0"
   currency: INR
   country: "IN:MH"
 
@@ -62,7 +64,7 @@ wpcli:
 wooMcp:
   image: urumi/woo-mcp:0.1.0
   imagePullPolicy: IfNotPresent
-  # "Aaj ke orders" ki definition is timezone se hoti hai
+  # "Today's orders" is defined in this timezone
   storeTimezone: Asia/Kolkata
   resources:
     requests:
@@ -72,7 +74,7 @@ wooMcp:
       cpu: 300m
       memory: 256Mi
 
-# Extra upstream MCP servers. Sab ek hi generic template (mcp-servers.yaml) se deploy hote hain.
+# Extra upstream MCP servers. All of them are deployed from one generic template (mcp-servers.yaml).
 mcpServers:
   notes:
     image: urumi/notes-mcp:0.1.0
@@ -95,7 +97,7 @@ mcpServers:
         cpu: 200m
         memory: 128Mi
 
-# Gateway ka database (users, API keys, upstream registry, audit log)
+# The gateway's database (users, API keys, upstream registry, audit log)
 postgres:
   image: postgres:16-alpine
   storage: 2Gi
@@ -107,7 +109,7 @@ postgres:
       cpu: 500m
       memory: 512Mi
 
-# Gateway backend (admin API + /mcp endpoint). Dashboard bhi isi host pe aata hai.
+# Gateway backend (admin API and the /mcp endpoint). The dashboard is served on the same host.
 gateway:
   image: urumi/gateway:0.1.0
   imagePullPolicy: IfNotPresent
@@ -134,9 +136,9 @@ dashboard:
       cpu: 200m
       memory: 96Mi
 
-# Chat agent. API key yahan nahi hai: Kubernetes Secret "apiKeySecret" (key: api-key) se aati hai,
-# jo helm ke bahar banta hai (scripts/set-llm-key.ps1). Koi bhi OpenAI-compatible provider chalega.
-# Models: pehle "model", aur uske fail hone par "fallbackModel" (dono Groq pe).
+# Chat agent. The API key is not here: it comes from the Kubernetes Secret "apiKeySecret" (key: api-key),
+# which is created outside Helm (scripts/set-llm-key.ps1). Any OpenAI-compatible provider works.
+# Models: "model" first, and "fallbackModel" when it fails (both on Groq).
 chat:
   baseUrl: https://api.groq.com/openai/v1
   model: openai/gpt-oss-120b
@@ -145,7 +147,8 @@ chat:
   maxSteps: 6
   timezone: Asia/Kolkata
 
-# Namespace ke andar traffic: default-deny, aur sirf zaroori raaste allow (templates/networkpolicy.yaml).
-# k3s (k3d aur VPS dono) mein NetworkPolicy controller built-in hai. Emergency mein false kar sakte ho.
+# Traffic inside the namespace is denied by default, and only the needed paths are allowed
+# (templates/networkpolicy.yaml). k3s (k3d and VPS alike) ships a NetworkPolicy controller.
+# Set this to false only in an emergency.
 networkPolicy:
   enabled: true

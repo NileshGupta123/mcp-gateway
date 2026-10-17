@@ -18,7 +18,7 @@ spec:
         {{- include "urumi.labels" (dict "root" . "name" "wp-init") | nindent 8 }}
     spec:
       restartPolicy: Never
-      # WordPress image ke files uid 33 (www-data) ke hain; wp-cli ko wahi uid chahiye
+      # The files of the WordPress image belong to uid 33 (www-data); wp-cli must run as the same uid
       securityContext:
         runAsUser: 33
         runAsGroup: 33
@@ -33,14 +33,14 @@ spec:
               wp() { php -d memory_limit=512M "$WP_BIN" "$@"; }
               cd /var/www/html
 
-              echo "[0/6] wp-config.php check..."
+              echo "[0/6] Checking wp-config.php..."
               if [ ! -f wp-config.php ]; then
-                echo "wp-config.php nahi mila. /var/www/html ki listing:"
+                echo "wp-config.php not found. Listing of /var/www/html:"
                 ls -la /var/www/html | head -30
                 exit 1
               fi
 
-              echo "[1/6] Database ka wait (DB host: $WORDPRESS_DB_HOST)..."
+              echo "[1/6] Waiting for the database (DB host: $WORDPRESS_DB_HOST)..."
               i=0
               until php -r '
                 mysqli_report(MYSQLI_REPORT_OFF);
@@ -51,12 +51,12 @@ spec:
                 if ($m->connect_errno) { fwrite(STDERR, "db error: " . $m->connect_error . "\n"); exit(1); }
               '; do
                 i=$((i+1))
-                if [ "$i" -gt 24 ]; then echo "Database 2 minute mein ready nahi hua"; exit 1; fi
+                if [ "$i" -gt 24 ]; then echo "The database did not become ready within 2 minutes"; exit 1; fi
                 sleep 5
               done
               echo "Database connection OK."
 
-              echo "[2/6] WordPress install + core update..."
+              echo "[2/6] Installing WordPress and updating the core..."
               if ! wp core is-installed; then
                 wp core install \
                   --url="$SITE_URL" \
@@ -66,22 +66,31 @@ spec:
                   --admin_email="$ADMIN_EMAIL" \
                   --skip-email
               else
-                echo "WordPress pehle se installed hai, skip."
+                echo "WordPress is already installed, skipping the install."
               fi
-              echo "WordPress version (pehle): $(wp core version)"
-              # Latest WooCommerce ko WordPress 7.0+ chahiye; core latest pe laate hain
-              wp core update
+              echo "WordPress version (before): $(wp core version)"
+              # The image only seeds an empty volume. An existing volume keeps its old core files,
+              # so the core is moved to the pinned version here (or to the latest one when none is pinned).
+              if [ -n "$WP_CORE_VERSION" ]; then
+                wp core update --version="$WP_CORE_VERSION"
+              else
+                wp core update
+              fi
               wp core update-db
-              echo "WordPress version (baad mein): $(wp core version)"
+              echo "WordPress version (after): $(wp core version)"
 
               echo "[3/6] Permalinks..."
               wp rewrite structure '/%postname%/' --hard
 
-              echo "[4/6] WooCommerce install + activate..."
+              echo "[4/6] Installing and activating WooCommerce..."
               if ! wp plugin is-installed woocommerce; then
                 wp plugin install woocommerce ${WC_VERSION:+--version="$WC_VERSION"}
               fi
+              if [ -n "$WC_VERSION" ] && [ "$(wp plugin get woocommerce --field=version)" != "$WC_VERSION" ]; then
+                wp plugin update woocommerce --version="$WC_VERSION"
+              fi
               wp plugin activate woocommerce
+              echo "WooCommerce version: $(wp plugin get woocommerce --field=version)"
 
               echo "[5/6] Store settings (currency, COD, shipping, launch)..."
               wp option update woocommerce_currency "$WC_CURRENCY"
@@ -100,7 +109,7 @@ spec:
                 $ck = getenv("WOO_CONSUMER_KEY");
                 $cs = getenv("WOO_CONSUMER_SECRET");
                 $user = get_user_by("login", getenv("ADMIN_USER"));
-                if (!$user || !$ck || !$cs) { fwrite(STDERR, "user ya key missing\n"); exit(1); }
+                if (!$user || !$ck || !$cs) { fwrite(STDERR, "user or key missing\n"); exit(1); }
                 $wpdb->delete($table, array("description" => "urumi-woo-mcp"));
                 $ok = $wpdb->insert($table, array(
                   "user_id"         => $user->ID,
@@ -110,7 +119,7 @@ spec:
                   "consumer_secret" => $cs,
                   "truncated_key"   => substr($ck, -7),
                 ));
-                if (!$ok) { fwrite(STDERR, "API key insert fail\n"); exit(1); }
+                if (!$ok) { fwrite(STDERR, "API key insert failed\n"); exit(1); }
                 echo "api key ok\n";
               '
 
@@ -134,6 +143,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-store-admin
                   key: admin-password
+            - name: WP_CORE_VERSION
+              value: {{ .Values.wordpress.coreVersion | quote }}
             - name: WC_VERSION
               value: {{ .Values.woocommerce.version | quote }}
             - name: WC_CURRENCY
