@@ -51,6 +51,8 @@ spec:
               value: "http://{{ .Release.Name }}-wordpress"
             - name: WOO_HOST_HEADER
               value: {{ .Values.store.host | quote }}
+            - name: STORE_PUBLIC_URL
+              value: "{{ .Values.store.scheme }}://{{ .Values.store.host }}"
             - name: STORE_TZ
               value: {{ .Values.wooMcp.storeTimezone | quote }}
             - name: WOO_CONSUMER_KEY

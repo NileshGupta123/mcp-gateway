@@ -8,6 +8,7 @@ Env vars:
   WOO_CONSUMER_KEY     WooCommerce REST API key (Kubernetes Secret se)
   WOO_CONSUMER_SECRET  WooCommerce REST API secret (Kubernetes Secret se)
   WOO_HOST_HEADER      (optional) public store host, e.g. store.localtest.me
+  STORE_PUBLIC_URL     (optional) public store URL, e.g. http://store.localtest.me (tool results ke links ke liye)
   STORE_TZ             (optional) "aaj" ki definition ke liye timezone, default Asia/Kolkata
   PORT                 (optional) default 8000
 """
@@ -15,6 +16,7 @@ Env vars:
 import os
 from datetime import datetime, time, timezone
 from typing import Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -34,6 +36,7 @@ WOO_BASE_URL = _require_env("WOO_BASE_URL").rstrip("/")
 WOO_CONSUMER_KEY = _require_env("WOO_CONSUMER_KEY")
 WOO_CONSUMER_SECRET = _require_env("WOO_CONSUMER_SECRET")
 WOO_HOST_HEADER = os.environ.get("WOO_HOST_HEADER", "").strip()
+STORE_PUBLIC_URL = os.environ.get("STORE_PUBLIC_URL", "").strip().rstrip("/")
 STORE_TZ = ZoneInfo(os.environ.get("STORE_TZ", "Asia/Kolkata"))
 PORT = int(os.environ.get("PORT", "8000"))
 
@@ -101,6 +104,15 @@ def _utc_iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
+def _public_url(permalink: str | None) -> str | None:
+    """WordPress apna URL https ke saath banata hai (hum X-Forwarded-Proto: https bhejte hain).
+    Model aur user ko wo link dena chahiye jo browser mein sach mein khulta hai."""
+    if not permalink or not STORE_PUBLIC_URL:
+        return permalink
+    parts = urlsplit(permalink)
+    return STORE_PUBLIC_URL + parts.path + (f"?{parts.query}" if parts.query else "")
+
+
 def _product(p: dict) -> dict:
     return {
         "id": p["id"],
@@ -112,7 +124,7 @@ def _product(p: dict) -> dict:
         "sale_price": p.get("sale_price"),
         "stock_status": p.get("stock_status"),
         "stock_quantity": p.get("stock_quantity"),
-        "url": p.get("permalink"),
+        "url": _public_url(p.get("permalink")),
     }
 
 
