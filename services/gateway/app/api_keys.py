@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/keys", tags=["api-keys"])
 
 class KeyCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    user_id: int | None = None  # sirf admin dusre user ke liye key bana sakta hai
+    user_id: int | None = None  # only an admin can issue a key for another user
 
 
 def key_out(key: ApiKey, user_email: str | None = None) -> dict:
@@ -65,7 +65,7 @@ async def create_key(
     key = ApiKey(user_id=owner_id, name=body.name.strip(), prefix=prefix, key_hash=digest)
     session.add(key)
     await session.commit()
-    # Plaintext key sirf isi response mein hai. DB mein sirf hash hai, dobara nikaal nahi sakte
+    # The plaintext key is only in this response. The database holds just the hash, so it cannot be recovered
     return {**key_out(key), "key": raw}
 
 
@@ -76,7 +76,7 @@ async def revoke_key(
     session: AsyncSession = Depends(get_session),
 ):
     key = await session.get(ApiKey, key_id)
-    # Dusre ki key ke liye 404 (403 nahi), taaki key IDs ka andaza na lage
+    # Someone else's key answers 404 (not 403), so key IDs cannot be enumerated
     if key is None or (key.user_id != user.id and user.role != "admin"):
         raise HTTPException(status_code=404, detail="Key not found")
     if key.revoked_at is None:

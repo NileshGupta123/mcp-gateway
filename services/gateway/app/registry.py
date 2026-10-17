@@ -1,4 +1,4 @@
-"""Registered servers ka status aur tool list. Parallel probe, per-server timeout, chhota cache."""
+"""Status and tool list of the registered servers. Parallel probes, per-server timeout, short cache."""
 
 import asyncio
 import time
@@ -12,7 +12,7 @@ from .crypto import decrypt
 from .models import McpServer
 from .upstream import UpstreamConfig, describe_error, fetch_tools
 
-# server_id -> (monotonic_time, updated_at jab cache bana, result)
+# server_id -> (monotonic time, updated_at when cached, result)
 _cache: dict[int, tuple[float, datetime, dict]] = {}
 
 
@@ -36,7 +36,7 @@ async def _probe(server: McpServer) -> dict:
     try:
         tools = await fetch_tools(to_config(server), settings.upstream_list_timeout)
         result = {"status": "connected", "error": None, "tools": tools}
-    except Exception as exc:  # noqa: BLE001  (ek server ka koi bhi error baaki ko nahi rokega)
+    except Exception as exc:  # noqa: BLE001  (any error of one server must not stop the others)
         result = {"status": "unreachable", "error": describe_error(exc), "tools": []}
     result["latency_ms"] = int((time.monotonic() - started) * 1000)
     result["checked_at"] = datetime.now(timezone.utc).isoformat()
@@ -52,7 +52,7 @@ async def _state(server: McpServer, force: bool) -> dict:
     if (
         cached
         and not force
-        and cached[1] == server.updated_at  # edit hua to cache bekaar
+        and cached[1] == server.updated_at  # the cache is void once the server was edited
         and time.monotonic() - cached[0] < settings.status_cache_ttl
     ):
         return cached[2]
@@ -61,7 +61,7 @@ async def _state(server: McpServer, force: bool) -> dict:
 
 async def server_states(session: AsyncSession, force: bool = False) -> list[tuple[McpServer, dict]]:
     rows = (await session.execute(select(McpServer).order_by(McpServer.id))).scalars().all()
-    # Sab servers ek saath probe hote hain; kisi ek ka slow/dead hona doosron ko nahi rokta
+    # All servers are probed together, so one slow or dead server does not hold up the others
     results = await asyncio.gather(*[_state(s, force) for s in rows])
     return list(zip(rows, results))
 

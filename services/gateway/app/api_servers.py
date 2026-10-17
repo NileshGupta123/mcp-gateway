@@ -46,7 +46,7 @@ def server_out(server: McpServer, state: dict) -> dict:
         "enabled": server.enabled,
         "auth_type": server.auth_type,
         "header_name": server.header_name,
-        # Credential kabhi wapas nahi aata, sirf ye bataya jaata hai ki set hai ya nahi
+        # The credential never comes back, only whether one is set
         "has_credential": bool(server.credential_encrypted),
         "status": state["status"],
         "error": state["error"],
@@ -57,7 +57,7 @@ def server_out(server: McpServer, state: dict) -> dict:
             {
                 "name": t["name"],
                 "gateway_name": f"{server.name}__{t['name']}",
-                # Description upstream ki likhi hoti hai (untrusted), isliye lambai cap
+                # The description is written by the upstream (untrusted), so its length is capped
                 "description": t["description"][:300],
             }
             for t in state["tools"]

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Principal:
-    """Kaun call kar raha hai. Audit log aur permissions isi se chalte hain."""
+    """Who is making the call. The audit log and the permissions are driven by this."""
 
     user_id: int
     email: str

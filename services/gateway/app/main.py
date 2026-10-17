@@ -28,7 +28,7 @@ log = logging.getLogger("gateway")
 
 
 async def bootstrap_admin() -> None:
-    """Pehli baar start pe ek admin banata hai (email/password Kubernetes Secret se)."""
+    """Creates the first admin on the first start (email and password come from a Kubernetes Secret)."""
     async with SessionLocal() as session:
         count = (await session.execute(select(func.count()).select_from(User))).scalar_one()
         if count:
@@ -46,11 +46,11 @@ async def bootstrap_admin() -> None:
             await session.commit()
             log.info("Bootstrap admin created: %s", settings.admin_email)
         except IntegrityError:
-            await session.rollback()  # doosre replica ne pehle bana diya
+            await session.rollback()  # another replica created it first
 
 
 async def seed_servers() -> None:
-    """Table khali ho to Helm se aayi upstream list register karta hai (woocommerce pehla server)."""
+    """When the table is empty, registers the upstream list that came from Helm (woocommerce first)."""
     if not settings.upstream_seed:
         return
     try:
@@ -97,7 +97,7 @@ app.include_router(api_permissions.router)
 app.include_router(api_audit.router)
 app.include_router(api_chat.router)
 
-# /mcp ek raw ASGI app hai (FastAPI ke request handler ke bajay), taaki MCP transport poora control rakhe
+# /mcp is a raw ASGI app (not a FastAPI request handler), so the MCP transport keeps full control
 app.router.routes.append(Route("/mcp", endpoint=mcp_endpoint.McpEndpoint()))
 
 

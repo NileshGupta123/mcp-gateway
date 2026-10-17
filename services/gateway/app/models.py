@@ -29,7 +29,7 @@ class ApiKey(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(80))
-    prefix: Mapped[str] = mapped_column(String(16))  # sirf dikhane ke liye, key ka shuruaati hissa
+    prefix: Mapped[str] = mapped_column(String(16))  # display only: the first characters of the key
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # SHA-256 hex
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -40,13 +40,13 @@ class McpServer(Base):
     __tablename__ = "mcp_servers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Tool naming ka prefix: "<name>__<tool>". Sirf a-z0-9 aur hyphen, isliye "__" ambiguous nahi
+    # Prefix for tool naming: "<name>__<tool>". Only a-z, 0-9 and hyphens, so "__" is never ambiguous
     name: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     url: Mapped[str] = mapped_column(String(500))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auth_type: Mapped[str] = mapped_column(String(16), default="none")  # none | bearer | header
     header_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Fernet se encrypted. Plaintext kabhi DB ya API response mein nahi jaata
+    # Encrypted with Fernet. The plaintext never reaches the database or an API response
     credential_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
@@ -58,7 +58,8 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    user_email: Mapped[str] = mapped_column(String(255))  # user delete ho jaaye tab bhi log mein attribution bachi rahe
+    # Kept next to user_id so the attribution survives even if the user row is deleted
+    user_email: Mapped[str] = mapped_column(String(255))
     server: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tool: Mapped[str] = mapped_column(String(160))
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
@@ -68,7 +69,7 @@ class AuditLog(Base):
 
 
 class ToolDeny(Base):
-    """Ek row = is role ke liye ye tool band hai. Row na ho to tool allowed hai."""
+    """One row means this tool is blocked for this role. No row means the tool is allowed."""
 
     __tablename__ = "tool_denials"
     __table_args__ = (UniqueConstraint("role", "server", "tool", name="uq_tool_denial"),)

@@ -1,10 +1,10 @@
-"""Upstream credentials ko DB mein encrypt karke rakhne ke liye (Fernet = AES-128-CBC + HMAC)."""
+"""Encrypts upstream credentials before they are stored in the database (Fernet = AES-128-CBC + HMAC)."""
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from .config import settings
 
-# Key galat ho to yahin startup pe saaf error aata hai, chupke se nahi
+# A wrong key fails loudly at startup, not silently later
 _fernet = Fernet(settings.fernet_key.encode())
 
 

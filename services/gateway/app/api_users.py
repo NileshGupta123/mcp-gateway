@@ -54,7 +54,7 @@ async def create_user(
     )
     session.add(user)
     await session.commit()
-    # Temporary password sirf isi response mein hai, dobara kabhi nahi dikhega
+    # The temporary password is only in this response. It is never shown again
     return {**user_out(user), "temporary_password": temp_password}
 
 
@@ -68,7 +68,7 @@ async def update_user(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    # Admin khud ko demote/deactivate nahi kar sakta, isse kam se kam ek admin hamesha bacha rehta hai
+    # An admin cannot demote or deactivate themselves, so at least one admin always remains
     if user.id == admin.id and (body.active is False or (body.role and body.role != "admin")):
         raise HTTPException(status_code=400, detail="You cannot demote or deactivate yourself")
     if body.role is not None:

@@ -1,11 +1,10 @@
-"""Chat agent: LLM aur gateway ke tools ka loop.
+"""Chat agent: the loop between the LLM and the gateway tools.
 
-Tool calls gateway_core.execute_tool se jaati hain, wahi function jo /mcp endpoint use karta hai.
-Isliye routing, timeouts, errors aur audit dono jagah ek jaise hain, aur calls us user ke naam se
-audit hoti hain jo chat kar raha hai (source="chat").
+Tool calls go through gateway_core.execute_tool, the same function the /mcp endpoint uses. So routing,
+timeouts, errors and audit are identical, and the calls are audited under the user who is chatting
+(source="chat").
 
-Models: pehle LLM_MODEL (openai/gpt-oss-120b), aur uske fail hone par LLM_FALLBACK_MODEL
-(openai/gpt-oss-20b).
+Models: LLM_MODEL first (openai/gpt-oss-120b), and LLM_FALLBACK_MODEL (openai/gpt-oss-20b) when it fails.
 """
 
 import json
@@ -24,8 +23,8 @@ from .principal import Principal
 
 log = logging.getLogger("gateway.chat")
 
-MAX_TOOL_RESULT_CHARS = 6000  # model ko jaane wala tool result
-MAX_UI_RESULT_CHARS = 1500  # dashboard mein dikhne wala preview
+MAX_TOOL_RESULT_CHARS = 6000  # tool result that is sent back to the model
+MAX_UI_RESULT_CHARS = 1500  # preview shown in the dashboard
 
 
 class ChatError(Exception):
@@ -38,7 +37,7 @@ _recent: dict[int, deque[float]] = defaultdict(deque)
 
 
 def _check_rate(user_id: int) -> None:
-    """Har user ke liye per-minute limit (in-memory, isliye per replica)."""
+    """Per-user limit per minute (in memory, so it applies per replica)."""
     now = time.monotonic()
     window = _recent[user_id]
     while window and now - window[0] > 60:
@@ -71,11 +70,11 @@ def _system_prompt() -> str:
 
 
 def _clean_schema(node):
-    """MCP tool schema ko LLM providers ke liye saaf karta hai.
+    """Cleans an MCP tool schema for LLM providers.
 
-    FastMCP optional parameters ke liye 'title', 'default: null' aur 'anyOf [X, null]' bhejta hai.
-    Kuch providers inhe reject karte hain, isliye hata dete hain / simple bana dete hain.
-    Property ke *naam* kabhi nahi chhede jaate (kisi tool ka parameter 'title' bhi ho sakta hai).
+    FastMCP emits 'title', 'default: null' and 'anyOf [X, null]' for optional parameters.
+    Some providers reject these, so they are dropped or simplified.
+    Property names are never touched (a tool may have a parameter called 'title').
     """
     if isinstance(node, list):
         return [_clean_schema(item) for item in node]
@@ -102,7 +101,7 @@ def _clean_schema(node):
 
 
 def _provider_message(resp: httpx.Response) -> str:
-    """Provider ke error body se message nikaalta hai, chaahe format kuch bhi ho."""
+    """Extracts the message from a provider error body, whatever its format."""
     try:
         data = resp.json()
     except ValueError:
@@ -134,7 +133,7 @@ def _models() -> list[str]:
 
 
 def _should_fallback(resp: httpx.Response) -> bool:
-    """Doosre model pe jaane se kab fayda hota hai (galat API key 401 pe nahi, wo dono pe fail hogi)."""
+    """When switching to the other model can help (not for a wrong API key, 401: it fails on both)."""
     if resp.status_code in (403, 404, 408, 429) or resp.status_code >= 500:
         return True
     if resp.status_code == 400:
@@ -171,7 +170,7 @@ async def _complete(messages: list[dict], tools: list[dict]) -> dict:
                     resp = await client.post("/chat/completions", json=payload)
             except httpx.TimeoutException:
                 last_error = ChatError(f"The language model '{model}' timed out", 504)
-                break  # agle model pe
+                break  # try the next model
             except httpx.HTTPError:
                 last_error = ChatError("Could not reach the language model provider", 502)
                 break
@@ -183,9 +182,9 @@ async def _complete(messages: list[dict], tools: list[dict]) -> dict:
                     log.info("Answered by fallback model %s", model)
                 return data
 
-            # Provider ka poora jawab gateway ke log mein (isme API key kabhi nahi hoti)
+            # The full provider answer goes to the gateway log (it never contains the API key)
             log.warning("LLM provider returned %s for %s: %s", resp.status_code, model, resp.text[:1000])
-            # Kabhi kabhi model galat format ka tool call banata hai; usi model pe ek baar dobara try
+            # Sometimes the model builds a malformed tool call; retry once on the same model
             if resp.status_code == 400 and "tool_use_failed" in resp.text and attempt == 0:
                 continue
             last_error = ChatError(_llm_error(resp, model), 502)

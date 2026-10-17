@@ -38,7 +38,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 def generate_api_key() -> tuple[str, str, str]:
-    """(raw_key, display_prefix, sha256_hex). Raw key sirf ek baar user ko dikhti hai."""
+    """Returns (raw_key, display_prefix, sha256_hex). The raw key is shown to the user only once."""
     raw = "umk_" + secrets.token_urlsafe(32)
     return raw, raw[:12], hash_api_key(raw)
 

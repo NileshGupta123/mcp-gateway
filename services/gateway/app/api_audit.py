@@ -32,7 +32,7 @@ async def list_audit(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    # Admin sab ka log dekhta hai; member sirf apni calls
+    # An admin sees everyone's log; a member sees only their own calls
     conditions = []
     if user.role != "admin":
         conditions.append(AuditLog.user_id == user.id)

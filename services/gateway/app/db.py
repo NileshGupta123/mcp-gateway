@@ -23,8 +23,8 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db(retries: int = 30, delay: float = 2.0) -> None:
-    """Tables banata hai. Postgres pod gateway se der se ready ho sakta hai, isliye retry."""
-    from . import models  # noqa: F401  (tables register karne ke liye import zaroori hai)
+    """Create the tables. The Postgres pod may become ready after the gateway starts, so retry."""
+    from . import models  # noqa: F401  (the import registers the tables)
 
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):

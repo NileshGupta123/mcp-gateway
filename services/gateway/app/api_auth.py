@@ -13,8 +13,8 @@ from .security import hash_password, make_session_token, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# User na mile tab bhi itna hi time lagana chahiye, warna response time se pata chal jaata hai
-# ki email register hai ya nahi.
+# When the user does not exist, the same amount of work still runs. Otherwise the response time
+# would reveal whether an email address is registered.
 _DUMMY_HASH = hash_password("dummy-password-for-constant-time")
 
 

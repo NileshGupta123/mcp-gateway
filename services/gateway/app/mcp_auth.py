@@ -9,7 +9,7 @@ from .security import hash_api_key
 
 
 async def authenticate_api_key(raw: str) -> Principal | None:
-    """API key ko hash karke DB se match karta hai. Revoked key ya inactive user = None."""
+    """Hashes the API key and matches it in the database. A revoked key or an inactive user gives None."""
     if not raw.startswith("umk_") or len(raw) > 200:
         return None
     digest = hash_api_key(raw)
@@ -25,7 +25,7 @@ async def authenticate_api_key(raw: str) -> Principal | None:
         if key.revoked_at is not None or not user.active:
             return None
         now = datetime.now(timezone.utc)
-
+        # Writing last_used_at on every call would load the database, so it is written at most once a minute
         if key.last_used_at is None or (now - key.last_used_at).total_seconds() > 60:
             key.last_used_at = now
             session.add(key)

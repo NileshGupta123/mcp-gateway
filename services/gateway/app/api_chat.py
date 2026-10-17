@@ -24,7 +24,7 @@ class ChatIn(BaseModel):
 async def chat(body: ChatIn, user: User = Depends(current_user)):
     if body.messages[-1].role != "user":
         raise HTTPException(status_code=422, detail="The last message must come from the user")
-    # Agent usi user ki identity se chalta hai, isliye calls audit log mein uske naam se aati hain
+    # The agent runs as this same user, so its calls show up in the audit log under their name
     principal = Principal(user_id=user.id, email=user.email, role=user.role)
     try:
         return await run_chat(principal, [m.model_dump() for m in body.messages])

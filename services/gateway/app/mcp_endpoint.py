@@ -1,7 +1,7 @@
-"""Gateway ka /mcp endpoint: ek MCP server jo sab upstreams ke tools ek jagah dikhata hai.
+"""The gateway's /mcp endpoint: one MCP server that exposes the tools of every upstream.
 
-Stateless Streamable HTTP: har request independent hai, isliye multiple replicas ke peeche
-bhi session-affinity ki zaroorat nahi.
+Stateless Streamable HTTP: every request is independent, so no session affinity is needed
+behind multiple replicas.
 """
 
 import contextvars
@@ -52,7 +52,7 @@ async def handle_list_tools() -> list[types.Tool]:
     ]
 
 
-# Input validation upstream server khud karta hai; yahan dobara karne ki zaroorat nahi
+# The upstream server validates the input itself, so there is no need to repeat it here
 @server.call_tool(validate_input=False)
 async def handle_call_tool(name: str, arguments: dict):
     return await gateway_core.execute_tool(current_principal(), name, arguments or {}, source="mcp")
@@ -71,7 +71,7 @@ def _bearer_token(scope: Scope) -> str | None:
 
 
 class McpEndpoint:
-    """ASGI app: pehle API key check, phir MCP session manager ko request."""
+    """ASGI app: checks the API key first, then hands the request to the MCP session manager."""
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":

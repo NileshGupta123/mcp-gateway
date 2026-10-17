@@ -1,8 +1,8 @@
-"""Basic SSRF guard: admin jo upstream URL deta hai, usse gateway kahan connect kar sakta hai.
+"""Basic SSRF guard: limits where the gateway may connect for an upstream URL given by an admin.
 
-Policy: private ranges (10.x, 172.16.x, 192.168.x) allowed hain, kyunki hamare upstreams cluster ke
-andar hain. Cloud metadata, loopback, link-local aur non-http schemes hamesha block hain.
-Production mein iske upar explicit host allowlist lagana better hai.
+Policy: private ranges (10.x, 172.16.x, 192.168.x) are allowed because our upstreams live inside the
+cluster. Cloud metadata, loopback, link-local and non-http schemes are always blocked.
+In production an explicit host allowlist on top of this is better.
 """
 
 import asyncio
@@ -49,6 +49,6 @@ async def validate_upstream_url(url: str) -> None:
     try:
         infos = await asyncio.to_thread(socket.getaddrinfo, host, port, 0, socket.SOCK_STREAM)
     except socket.gaierror:
-        return  # resolve nahi hua to attack ka rasta bhi nahi; connect pe saaf error milega
+        return  # a name that does not resolve is no attack path; the connect step reports a clear error
     for info in infos:
         _check_ip(info[4][0])

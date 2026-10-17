@@ -1,4 +1,4 @@
-"""Saari settings environment se aati hain (Kubernetes Secret / values se). Code mein koi secret nahi."""
+"""All settings come from the environment (Kubernetes Secrets and Helm values). No secret lives in the code."""
 
 import os
 from dataclasses import dataclass
@@ -19,16 +19,16 @@ class Settings:
     admin_email: str
     admin_password: str
     cookie_secure: bool
-    # JSON list: [{"name": "...", "url": "..."}]. Table khali ho tab ek baar register hota hai
+    # JSON list: [{"name": "...", "url": "..."}]. Registered once, when the table is empty
     upstream_seed: str = ""
     session_ttl_seconds: int = 8 * 3600
-    # Tool listing / status probe ka per-server timeout (seconds)
+    # Per-server timeout for tool listing and status probes (seconds)
     upstream_list_timeout: float = 5.0
-    # Tool call ka per-call timeout (seconds)
+    # Per-call timeout for tool calls (seconds)
     upstream_call_timeout: float = 30.0
-    # Status kitni der cache rahe (seconds)
+    # How long a server status stays cached (seconds)
     status_cache_ttl: float = 10.0
-    # Chat agent. LLM key khali ho to chat 503 deta hai, gateway phir bhi chalta hai
+    # Chat agent. With an empty LLM key the chat answers 503 while the gateway keeps working
     llm_api_key: str = ""
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_model: str = "openai/gpt-oss-120b"

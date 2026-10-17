@@ -1,7 +1,7 @@
-"""Gateway ka core: tools ki aggregated list aur routing + audit ke saath tool execution.
+"""Gateway core: the aggregated tool list, and tool execution with routing and audit.
 
-MCP endpoint aur chat agent dono yahi functions use karte hain, isliye dono ek hi tarah
-audit hote hain, ek hi tarah ke errors dete hain, aur ek hi permissions lagte hain.
+The MCP endpoint and the chat agent both use these functions, so both are audited the same way,
+return the same errors, and obey the same permissions.
 """
 
 import logging
@@ -24,18 +24,18 @@ SEPARATOR = "__"
 
 
 class ToolCallError(Exception):
-    """Model ko dikhne wala saaf error. Isme secrets kabhi nahi hote."""
+    """A clear error message that the model can see. It never contains secrets."""
 
 
 def _clean(text: str, limit: int) -> str:
-    # Upstream ka text untrusted hai: control characters hata do aur lambai cap karo
+    # Text from an upstream is untrusted: drop control characters and cap the length
     return "".join(ch for ch in text if ch == "\n" or ch >= " ")[:limit]
 
 
 async def list_gateway_tools(principal: Principal) -> list[dict]:
-    """Sab enabled aur connected servers ke tools, `<server>__<tool>` naam ke saath.
+    """Tools of every enabled and connected server, named `<server>__<tool>`.
 
-    Jo tools is principal ke role ke liye band hain wo list se gayab rehte hain.
+    Tools blocked for the principal's role are left out of the list.
     """
     async with SessionLocal() as session:
         states = await registry.server_states(session)
@@ -43,10 +43,10 @@ async def list_gateway_tools(principal: Principal) -> list[dict]:
     tools: list[dict] = []
     for server, state in states:
         if state["status"] != "connected":
-            continue  # disabled ya unreachable server ke tools list se gayab
+            continue  # tools of a disabled or unreachable server disappear from the list
         for tool in state["tools"]:
             if (server.name, tool["name"]) in denied:
-                continue  # is role ko ye tool nahi milta
+                continue  # this role is not allowed to use the tool
             tools.append(
                 {
                     "name": f"{server.name}{SEPARATOR}{tool['name']}",
@@ -68,7 +68,7 @@ async def _audit(
     outcome: str,
     error: str | None,
 ) -> None:
-    # Audit failure se user ki call nahi rukti (fail-open); par error log mein aata hai
+    # An audit failure does not stop the user's call (fail open), but the error is logged
     try:
         async with SessionLocal() as session:
             session.add(
@@ -112,7 +112,7 @@ async def execute_tool(
             raise ToolCallError(f"Unknown tool '{gateway_name}': server '{server_name}' is not available")
         audit_server, audit_tool = server.name, tool_name
 
-        # Permission check: list se chhupne ke saath-saath seedhi call bhi reject hoti hai
+        # Permission check: a blocked tool is hidden from the list and also rejected when called directly
         if (server.name, tool_name) in await denied_tools(principal.role):
             outcome = "denied"
             raise ToolCallError(f"You do not have permission to use '{gateway_name}'")

@@ -26,7 +26,7 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
     if user_id is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     user = await session.get(User, user_id)
-    # Har request pe DB check: deactivate hote hi session bekaar ho jaata hai
+    # The user is checked in the database on every request, so a deactivated user is cut off at once
     if user is None or not user.active:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user

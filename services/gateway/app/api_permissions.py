@@ -12,7 +12,7 @@ from .models import McpServer, ToolDeny, User
 
 router = APIRouter(prefix="/api/permissions", tags=["permissions"])
 
-ROLE = "member"  # abhi sirf member restrict hota hai; admin hamesha sab use kar sakta hai
+ROLE = "member"  # only members are restricted for now; admins can always use every tool
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 
 
@@ -42,7 +42,7 @@ async def list_permissions(_: User = Depends(require_admin), session: AsyncSessi
                 ],
             }
         )
-    # Poori band-list, chaahe server abhi unreachable ho (rules tab bhi lagte rehte hain)
+    # The full block list is returned even when a server is unreachable, because the rules still apply
     return {"servers": servers, "denied": sorted(f"{s}__{t}" for s, t in denied)}
 
 

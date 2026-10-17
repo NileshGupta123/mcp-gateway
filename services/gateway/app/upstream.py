@@ -1,4 +1,4 @@
-"""Upstream MCP server se baat karne wala client layer (Streamable HTTP)."""
+"""Client layer that talks to an upstream MCP server (Streamable HTTP)."""
 
 from dataclasses import dataclass
 
@@ -18,14 +18,14 @@ class UpstreamConfig:
 
 
 def root_cause(exc: BaseException) -> BaseException:
-    """anyio task groups errors ko ExceptionGroup mein lapette hain; asli wajah nikaalte hain."""
+    """anyio task groups wrap errors in an ExceptionGroup; this digs out the real cause."""
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     return exc
 
 
 def describe_error(exc: BaseException) -> str:
-    """Model aur dashboard ko dikhane layak saaf message. Isme credentials kabhi nahi aate."""
+    """A clear message that is safe to show to the model and the dashboard. It never contains credentials."""
     cause = root_cause(exc)
     if isinstance(cause, UrlNotAllowed):
         return f"blocked: {cause}"
@@ -42,8 +42,8 @@ def describe_error(exc: BaseException) -> str:
 
 
 async def fetch_tools(cfg: UpstreamConfig, timeout: float) -> list[dict]:
-    # Poora kaam (DNS check + connect + list) ek hi timeout ke andar, to dead server bounded rehta hai.
-    # URL har connect pe dobara check hota hai (DNS rebinding se bachne ke liye).
+    # All of the work (DNS check, connect, list) runs inside one timeout, so a dead server stays bounded.
+    # The URL is checked again on every connect, to protect against DNS rebinding.
     with anyio.fail_after(timeout):
         await validate_upstream_url(cfg.url)
         async with streamablehttp_client(cfg.url, headers=cfg.headers or None) as (read, write, _):

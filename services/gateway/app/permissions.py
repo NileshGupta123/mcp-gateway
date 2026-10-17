@@ -1,4 +1,4 @@
-"""Tool permissions: kis role ko kaun sa tool nahi milta."""
+"""Tool permissions: which tools a role is not allowed to use."""
 
 from sqlalchemy import select
 
@@ -7,7 +7,7 @@ from .models import ToolDeny
 
 
 async def denied_tools(role: str) -> set[tuple[str, str]]:
-    """(server, tool) ka set jo is role ke liye band hai. Admin pe koi rok nahi (lock-out se bachne ke liye)."""
+    """The set of (server, tool) pairs blocked for this role. Admins are never restricted, so nobody can lock themselves out."""
     if role == "admin":
         return set()
     async with SessionLocal() as session:
