@@ -135,7 +135,7 @@ dashboard:
       memory: 96Mi
 
 # Chat agent. API key yahan nahi hai: Kubernetes Secret "apiKeySecret" (key: api-key) se aati hai,
-# jo helm ke bahar banta hai (README mein command hai). Koi bhi OpenAI-compatible provider chalega.
+# jo helm ke bahar banta hai (scripts/set-llm-key.ps1). Koi bhi OpenAI-compatible provider chalega.
 # Models: pehle "model", aur uske fail hone par "fallbackModel" (dono Groq pe).
 chat:
   baseUrl: https://api.groq.com/openai/v1
@@ -144,3 +144,8 @@ chat:
   apiKeySecret: urumi-llm
   maxSteps: 6
   timezone: Asia/Kolkata
+
+# Namespace ke andar traffic: default-deny, aur sirf zaroori raaste allow (templates/networkpolicy.yaml).
+# k3s (k3d aur VPS dono) mein NetworkPolicy controller built-in hai. Emergency mein false kar sakte ho.
+networkPolicy:
+  enabled: true

@@ -1,0 +1,262 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $rel := .Release.Name }}
+{{- $ns := .Release.Namespace }}
+---
+# 1. Namespace ka default: koi ingress nahi, koi egress nahi. Neeche har allow explicit hai.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-default-deny
+  namespace: {{ $ns }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# 2. Sab pods ko DNS (CoreDNS, kube-system) chahiye
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-dns
+  namespace: {{ $ns }}
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# 3. WordPress: Traefik (storefront) aur woo-mcp (REST API) andar aa sakte hain.
+#    Bahar: mariadb, aur public internet (updates / plugins)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-wordpress
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: wordpress
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: woo-mcp
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mariadb
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 3306
+    {{- include "urumi.publicEgress" . | nindent 4 }}
+---
+# 4. MariaDB: sirf WordPress aur setup job andar aa sakte hain. Bahar kuch nahi
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-mariadb
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mariadb
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: wordpress
+              app.kubernetes.io/instance: {{ $rel }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: wp-init
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 3306
+---
+# 5. wp-init job: mariadb aur public internet (WordPress/WooCommerce download). Andar koi nahi
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-wp-init
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: wp-init
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mariadb
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 3306
+    {{- include "urumi.publicEgress" . | nindent 4 }}
+---
+# 6. WooCommerce MCP server: sirf gateway call kar sakta hai, aur ye sirf WordPress tak jaa sakta hai
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-woo-mcp
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: woo-mcp
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: wordpress
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 80
+{{- range $name, $_ := .Values.mcpServers }}
+---
+# 7. Extra MCP server ({{ $name }}): sirf gateway andar aa sakta hai. Bahar kuch nahi
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-{{ $name }}-mcp
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-mcp
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 8000
+{{- end }}
+---
+# 8. Postgres: sirf gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-postgres
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# 9. Gateway: Traefik andar aa sakta hai. Bahar: postgres, MCP servers aur public internet (LLM, upstreams)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-gateway
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+              app.kubernetes.io/instance: {{ $rel }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: woo-mcp
+              app.kubernetes.io/instance: {{ $rel }}
+        {{- range $name, $_ := .Values.mcpServers }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $name }}-mcp
+              app.kubernetes.io/instance: {{ $rel }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8000
+    {{- include "urumi.publicEgress" . | nindent 4 }}
+---
+# 10. Dashboard (static files): sirf Traefik andar aa sakta hai. Bahar kuch nahi
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-dashboard
+  namespace: {{ $ns }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}

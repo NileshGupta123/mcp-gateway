@@ -31,3 +31,23 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
     define('WP_SITEURL', '{{ .Values.store.scheme }}://{{ .Values.store.host }}');
     if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $_SERVER['HTTPS'] = 'on'; }
 {{- end -}}
+
+{{/* NetworkPolicy egress rule: public internet (80/443), private ranges aur cloud metadata ke bina.
+     Usage: {{- include "urumi.publicEgress" . | nindent 4 }} */}}
+{{- define "urumi.publicEgress" -}}
+- to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+          - 169.254.0.0/16
+          - 100.64.0.0/10
+          - 127.0.0.0/8
+  ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+{{- end -}}
