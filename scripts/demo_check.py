@@ -1,12 +1,15 @@
-"""Definition-of-done ka poora rehearsal: do users, chat agent, external MCP client, revoke, disable, pod kill, audit.
+"""Full rehearsal of the definition of done: two users, chat agent, external MCP client, revoke,
+disable, pod kill and audit attribution.
 
 Usage:
   $env:ADMIN_PASSWORD = "<admin password>"
   .\\.venv\\Scripts\\python.exe .\\scripts\\demo_check.py [BASE_URL]     (default http://app.localtest.me)
 
-Beech mein ek jagah rukti hai: tumhe storefront pe haath se order dena hota hai (jaisa demo mein dikhaoge).
-User A = admin (chat agent). User B = member (external MCP client, sirf gateway URL + apni key).
-Cleanup khud karti hai: notes dobara enable, time-mcp wapas 1 replica, dono users deactivate.
+It stops once and asks you to place an order by hand on the storefront, the same way you will do it
+in the demo video. Then you type the order number from the confirmation page.
+User A = admin (chat agent). User B = member (external MCP client, gateway URL + own key only).
+It cleans up after itself: notes is enabled again, time-mcp goes back to one replica, and both
+users are deactivated.
 """
 
 import asyncio
@@ -28,7 +31,7 @@ MCP_URL = f"{BASE}/mcp"
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 if not ADMIN_PASSWORD:
-    sys.exit("Pehle set karo: $env:ADMIN_PASSWORD = '...'")
+    sys.exit("Set the admin password first: $env:ADMIN_PASSWORD = '...'")
 
 failures: list[str] = []
 
@@ -52,7 +55,7 @@ def kubectl(*args: str) -> subprocess.CompletedProcess:
 
 
 class Gateway:
-    """Ek MCP session, di hui API key ke saath (external client ki tarah)."""
+    """One MCP session with the given API key, like an external client."""
 
     def __init__(self, key: str):
         self.key = key
@@ -88,7 +91,7 @@ async def main() -> None:
 
     r = admin.post("/api/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
     if r.status_code != 200:
-        sys.exit(f"Admin login fail hua: {r.status_code} {r.text}")
+        sys.exit(f"Admin login failed: {r.status_code} {r.text}")
 
     suffix = uuid.uuid4().hex[:6]
     a_email, b_email = f"demo-a-{suffix}@example.com", f"demo-b-{suffix}@example.com"
@@ -112,8 +115,16 @@ async def main() -> None:
         check("A: chat agent created the product", len(created_calls) == 1, res["reply"][:200])
         if created_calls:
             args = created_calls[0]["arguments"]
-            check("A: it used the name and price from the prompt", args.get("name") == product and float(args.get("price", 0)) == 199, str(args))
-            check("A: the product link points to the real store URL", created_calls[0]["result"].find(f"{STORE}/product/") != -1, created_calls[0]["result"][:200])
+            check(
+                "A: it used the name and price from the prompt",
+                args.get("name") == product and float(args.get("price", 0)) == 199,
+                str(args),
+            )
+            check(
+                "A: the product link points to the real store URL",
+                f"{STORE}/product/" in created_calls[0]["result"],
+                created_calls[0]["result"][:200],
+            )
         status = 0
         for _ in range(4):
             status = httpx.get(f"{STORE}/product/{slug}/", follow_redirects=True, timeout=30).status_code
@@ -122,22 +133,49 @@ async def main() -> None:
             time.sleep(2)
         check("A: the product is live on the storefront", status == 200, f"{STORE}/product/{slug}/ -> {status}")
 
-        print(f"\n>>> Ab storefront pe jaao: {STORE}/product/{slug}/")
-        print(">>> Add to cart -> Checkout -> Cash on delivery -> Place order (dummy address use karo).")
-        input(">>> Order place hone ke baad yahan Enter dabao... ")
+        print(f"\n>>> Now open the storefront: {STORE}/product/{slug}/")
+        print(">>> Add to cart -> Checkout -> Cash on delivery -> Place order (use a dummy address).")
+        order_text = input(">>> Type the order number from the confirmation page and press Enter (Enter alone skips): ").strip()
+        order_id = int(order_text.lstrip("#")) if order_text.lstrip("#").isdigit() else None
+        if order_id is None:
+            print("WARNING: no order number given, so the order checks below will probably fail.")
 
         res = chat(user_a, "What orders came in today?")
         order_calls = [c for c in res["tool_calls"] if c["name"] == "woocommerce__list_orders" and c["ok"]]
         check("A: chat agent called list_orders", len(order_calls) >= 1, res["reply"][:200])
-        check("A: the new order is in what it found", any(product in c["result"] for c in order_calls), res["reply"][:200])
+        found_by_chat = any(product in c["result"] for c in order_calls)
+        detail = res["reply"][:200]
+        if order_calls:
+            detail += f" | arguments sent: {order_calls[0]['arguments']} | raw result: {order_calls[0]['result'][:200]}"
+        check("A: the new order is in what it found", found_by_chat, detail)
 
         section("External MCP client as user B (gateway URL + B's key only)")
         async with Gateway(b_key) as s:
             names = {t.name for t in (await s.list_tools()).tools}
             prefixes = {n.split("__")[0] for n in names}
             check("B: sees tools from every enabled server", {"woocommerce", "notes", "time"} <= prefixes, str(sorted(prefixes)))
+
+            # Three questions that tell the possible causes apart
+            if order_id is not None:
+                res_get = await s.call_tool("woocommerce__get_order", {"order_id": order_id})
+                check(
+                    "B: get_order finds the order that was just placed",
+                    not res_get.isError and product in text_of(res_get),
+                    text_of(res_get)[:300],
+                )
+            res_all = await s.call_tool("woocommerce__list_orders", {"limit": 10})
+            check(
+                "B: the order appears in list_orders without a date filter",
+                not res_all.isError and product in text_of(res_all),
+                text_of(res_all)[:300],
+            )
             res_b = await s.call_tool("woocommerce__list_orders", {"today_only": True})
-            check("B: gets the same order with the same question", not res_b.isError and product in text_of(res_b), text_of(res_b)[:150])
+            check(
+                "B: gets the same order with the same question (today_only)",
+                not res_b.isError and product in text_of(res_b),
+                text_of(res_b)[:300] or "empty result",
+            )
+
             t = await s.call_tool("time__get_current_time", {"timezone": "Asia/Kolkata"})
             try:
                 now_text = json.loads(text_of(t))["time"]
@@ -167,16 +205,30 @@ async def main() -> None:
                 seen = current
                 break
             time.sleep(2)
-        check("dashboard API shows the dead server as unreachable, with a reason", bool(seen and seen["time"]["error"]), str(seen and seen["time"]["error"]))
+        check(
+            "dashboard API shows the dead server as unreachable, with a reason",
+            bool(seen and seen["time"]["error"]),
+            str(seen and seen["time"]["error"]),
+        )
         if seen:
-            check("the other servers stay connected", seen["woocommerce"]["status"] == "connected" and seen["notes"]["status"] == "connected")
+            check(
+                "the other servers stay connected",
+                seen["woocommerce"]["status"] == "connected" and seen["notes"]["status"] == "connected",
+            )
         async with Gateway(b_key) as s:
             names = {t.name for t in (await s.list_tools()).tools}
-            check("B: the healthy servers' tools are still listed", "woocommerce__list_orders" in names and "notes__list_notes" in names)
+            check(
+                "B: the healthy servers' tools are still listed",
+                "woocommerce__list_orders" in names and "notes__list_notes" in names,
+            )
             ok_call = await s.call_tool("woocommerce__list_orders", {"today_only": True})
             check("B: calls to healthy servers keep working", not ok_call.isError, text_of(ok_call)[:150])
             dead_call = await s.call_tool("time__get_current_time", {})
-            check("B: a call to the dead server returns a clear error", dead_call.isError and "time" in text_of(dead_call), text_of(dead_call)[:150])
+            check(
+                "B: a call to the dead server returns a clear error",
+                dead_call.isError and "time" in text_of(dead_call),
+                text_of(dead_call)[:150],
+            )
         kubectl("scale", "deploy/urumi-time-mcp", "--replicas=1")
         recovered = False
         for _ in range(40):
@@ -212,7 +264,10 @@ async def main() -> None:
             f"{len(b_rows)} rows",
         )
         check("B's rejected call to the disabled server is logged as denied", any(i["outcome"] == "denied" for i in b_rows))
-        check("no call is attributed to the wrong user", all(i["source"] == "mcp" for i in b_rows) and all(i["source"] == "chat" for i in a_rows))
+        check(
+            "no call is attributed to the wrong user",
+            all(i["source"] == "mcp" for i in b_rows) and all(i["source"] == "chat" for i in a_rows),
+        )
     finally:
         admin.patch(f"/api/servers/{notes_id}", json={"enabled": True})
         kubectl("scale", "deploy/urumi-time-mcp", "--replicas=1")
@@ -223,7 +278,7 @@ async def main() -> None:
     if failures:
         print(f"{len(failures)} check(s) failed: {failures}")
         sys.exit(1)
-    print("Saare checks pass. Product aur order store mein reh gaye hain (wp-admin se hata sakte ho).")
+    print("All checks pass. The product and the order are still in the store (remove them from wp-admin).")
 
 
 asyncio.run(main())
