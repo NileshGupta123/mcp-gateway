@@ -1,4 +1,4 @@
-# Secrets (assignment rule: no hardcoded secrets in repo)
+# Secrets (assignment rule: no hardcoded secrets in the repo)
 .env
 .env.*
 !.env.example
@@ -6,6 +6,9 @@
 *.key
 secrets.local.yaml
 values-secrets*.yaml
+
+# Database dumps (they contain user data)
+backups/
 
 # Python
 __pycache__/
